@@ -9,16 +9,17 @@ OPERATORS = {'<': (1, lambda x, y: x < y), '<=': (1, lambda x, y: x <= y),
              '*': (3, lambda x, y: x*y), '/': (3, lambda x, y: x/y),
              '//': (3, lambda x, y: x//y), '%': (3, lambda x, y: x%y),
              '^': (4, lambda x,y: x**y),
-             'abs': (5, lambda x: abs(x)), 'round': (5, lambda x: round(x)),
+             'abs': (5, lambda x: abs(x),1), 'round': (5, lambda x: round(x),1),
              }
 CONSTANTS = ('e', 'inf', 'nan', 'pi', 'tau')
 def split_string(string_with_eq):
     """Splits input string with mathematical operations.
     Functions like sin will stay separately from "("
     """
-    return re.findall(r">=|<=|==|!=|\/\/|\/|\d+\.?\d+|\w+|[\+\-\*\^\(\)]", string_with_eq.replace(' ',''))
+    return re.findall(r">=|<=|==|!=|,|\/\/|\/|\d+\.?\d+|\w+|[\+\-\*\^\(\)]", string_with_eq.replace(' ', ''))
 
 def shunting_yard(list_of_eq):
+   
     def is_float(input_str):
         try:
             float(input_str)
@@ -26,9 +27,7 @@ def shunting_yard(list_of_eq):
         except ValueError:
             return False
 
-
     stack = []
-
     for token in list_of_eq:
         # digits
         if is_float(token):
@@ -49,14 +48,19 @@ def shunting_yard(list_of_eq):
         elif token == '(':
             # just puts left patenthesis in stack
             stack.append(token)
+        
+        elif token == ',':
+            OPERATORS[last_operator_token][2]+=1
+        
         elif token in dir(math):
             #tries to find constant
             if token in CONSTANTS:
                 yield getattr(math, token)
                 continue
             # tries to find function
+            last_operator_token = token
             method_to_call = getattr(math,token)
-            OPERATORS[token] = (5, method_to_call)
+            OPERATORS[token] = (5, method_to_call,1)
             while stack and stack[-1] != "(" and OPERATORS[token][0] <= OPERATORS[stack[-1]][0]:
                 yield stack.pop()
             stack.append(token)                
@@ -69,8 +73,9 @@ def calc(polish):
     stack = []
     for token in polish:
         if token in OPERATORS:
-            y, x = stack.pop(), stack.pop()
-            stack.append(OPERATORS[token][1](x, y))
+            number_of_args_to_take = OPERATORS[token][2] if OPERATORS[token][0] == 5 else 2
+            args, stack = stack[-number_of_args_to_take:], stack[:-number_of_args_to_take]
+            stack.append(OPERATORS[token][1](*args))
         else:
             stack.append(token)
     # this return condition is made to return integers as integers, float/boolean as float/boolean
@@ -85,13 +90,3 @@ if __name__ =="__main__":
         # print(eval(input_string.replace('^', '**')))
         # return list(y)
         return calc(y)
-    
-
-
-    # print(compose("2+2+2+(12+3+55555-26262+sin(26263))"))
-    print(compose("5^3"))
-    print(compose("5//3"))
-    print(compose("5.0//3"))
-    print(compose("2!=3.0"))
-    print(compose("pi*2"))
-    # print(compose("11*sin(2 * 3+6)"))
