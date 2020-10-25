@@ -1,77 +1,97 @@
-# Wile with all logic. Later it will be refactored or deleted.
-class Oper():
+# File with all logic. Later it will be refactored or deleted.
+import re
+import math
+
+OPERATORS = {'<': (1, lambda x, y: x < y), '<=': (1, lambda x, y: x <= y),
+             '>': (1, lambda x, y: x > y), '>=': (1, lambda x, y: x >= y),
+             '==': (1, lambda x, y: x == y), '!=': (1, lambda x, y: x != y),
+             '+': (2, lambda x, y: x+y), '-': (2, lambda x, y: x-y),
+             '*': (3, lambda x, y: x*y), '/': (3, lambda x, y: x/y),
+             '//': (3, lambda x, y: x//y), '%': (3, lambda x, y: x%y),
+             '^': (4, lambda x,y: x**y),
+             'abs': (5, lambda x: abs(x)), 'round': (5, lambda x: round(x)),
+             }
+CONSTANTS = ('e', 'inf', 'nan', 'pi', 'tau')
+def split_string(string_with_eq):
+    """Splits input string with mathematical operations.
+    Functions like sin will stay separately from "("
     """
-    Defines how to represent symbols in input string.
-    """
-    def add(a, b):
-        """returns sum of numeric a and b
-        >>> Oper.add(1,3)
-        4
-        >>> Oper.add(2.0,19)
-        21.0
-        """
-        return a+b
+    return re.findall(r">=|<=|==|!=|\/\/|\/|\d+\.?\d+|\w+|[\+\-\*\^\(\)]", string_with_eq.replace(' ',''))
 
-    def sub(a, b):
-        """returns a -b for numeric a and b
-
-        Args:
-            a ([int]): number2
-            b ([int]): number2
-
-        >>> Oper.sub(1,4)
-        -3
-        >>> Oper.sub(1.0,-4)
-        5.0
-        """
-        return a - b
-
-    def mul(a, b):
-        """multiplies a and b
-        >>> Oper.mul(2,3)
-        6
-        >>> Oper.mul(0.5,2)
-        1.0
-        """
-        return a * b
-
-    def div(a, b):
-        """returns a // b
-        >>> Oper.div(2,3)
-        0
-        >>> Oper.div(3.0,2)
-        1.0
-        """
-        return a // b
-
-    def divide(a, b):
-        """returns a / b
-        >>> Oper.divide(3.0,2)
-        1.5
-        >>> Oper.divide(2,3)
-        0.6666666666666666
-        """
-        return a / b
-
-    def rem(a, b):
-        """return a % b
-        >>> Oper.rem(1,3)
-        1
-        >>> Oper.rem(6,3)
-        0
-        """
-        return a % b
-
-    def pow(a, b):
-        """returns a**b
-        >>> Oper.pow(3,2)
-        9
-        >>> Oper.pow(3,0.5)
-        1.7320508075688772
-        """
-        return a ** b
+def shunting_yard(list_of_eq):
+    def is_float(input_str):
+        try:
+            float(input_str)
+            return True
+        except ValueError:
+            return False
 
 
+    stack = []
+
+    for token in list_of_eq:
+        # digits
+        if is_float(token):
+            yield float(token)
+        # operator in OPERATORS
+        elif token in OPERATORS:
+            while stack and stack[-1] != "(" and OPERATORS[token][0] <= OPERATORS[stack[-1]][0]:
+                yield stack.pop()
+            stack.append(token)
+        elif token == ')':
+            # for right parenthesis we will return all elements from stack
+            # after left parenthesis and then remove left parenthesis too
+            while stack:
+                x = stack.pop()
+                if x == "(":
+                    break
+                yield x
+        elif token == '(':
+            # just puts left patenthesis in stack
+            stack.append(token)
+        elif token in dir(math):
+            #tries to find constant
+            if token in CONSTANTS:
+                yield getattr(math, token)
+                continue
+            # tries to find function
+            method_to_call = getattr(math,token)
+            OPERATORS[token] = (5, method_to_call)
+            while stack and stack[-1] != "(" and OPERATORS[token][0] <= OPERATORS[stack[-1]][0]:
+                yield stack.pop()
+            stack.append(token)                
+        else:
+            raise AttributeError(f"Unknown function {token}")
+    while stack:
+        yield stack.pop()
+
+def calc(polish):
+    stack = []
+    for token in polish:
+        if token in OPERATORS:
+            y, x = stack.pop(), stack.pop()
+            stack.append(OPERATORS[token][1](x, y))
+        else:
+            stack.append(token)
+    # this return condition is made to return integers as integers, float/boolean as float/boolean
+    return int(stack[0]) if int(stack[0]) == stack[0] and type(stack[0])== float else stack[0]
 
 if __name__ =="__main__":
-    pass
+
+    def compose(input_string):
+        x = split_string(input_string)
+        y = shunting_yard(x)
+        # print(calc(y))
+        # print(eval(input_string.replace('^', '**')))
+        # return list(y)
+        return calc(y)
+    
+
+
+    # print(compose("2+2+2+(12+3+55555-26262+sin(26263))"))
+    print(compose("5^3"))
+    print(compose("5//3"))
+    print(compose("5.0//3"))
+    print(compose("2!=3.0"))
+    print(compose("pi*2"))
+    # print(compose("11*sin(2 * 3+6)"))
